@@ -42,24 +42,19 @@ import java.util.Set;
 import java.util.HashSet;
 
 import java.util.List;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Queue;
 
 import java.util.Map;
 import java.util.HashMap;
 
-import java.util.Iterator;
-
 import java.util.Stack;
+import java.util.Map.Entry;
 
 import org.xml.sax.*;
 import org.xml.sax.helpers.DefaultHandler;
 import org.xml.sax.helpers.XMLReaderFactory;
-import javax.xml.parsers.SAXParserFactory; 
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.SAXParser;
 
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.File;
 
@@ -113,6 +108,7 @@ public class Automate implements Cloneable {
 		for(String f : F) setFinal(f);
 	}
 
+	@SuppressWarnings("unchecked")
 	public Object clone() {
 		Automate o = null;
 		try {
@@ -298,14 +294,101 @@ public class Automate implements Cloneable {
 	/** 
 	* Supprime les états qui ne sont pas utiles (accessible et co-accessible)  
 	* @return un automate équivalent utile (tous les états sont utiles)
+	 * @throws JFSMException 
 	*/
-	public Automate emonder() {
-		System.out.println("emonder() : méthode non implémentée");
-		Automate afn = (Automate) this.clone();
-
-		// A compléter
-
-		return afn;
+	public Automate emonder() throws JFSMException {
+		Boolean fini = false;
+        String newInitial = null;
+        Set<Transition> newTransition = new HashSet<Transition>();
+        Set<Etat> newQ = new HashSet<Etat>();
+        Set<String> newF = new HashSet<String>();
+        
+        // Donnes le groupes de référence de chaque etats.
+        Map<Etat, Integer> referenceMoore = new HashMap<Etat, Integer>();
+        
+        // Donne le nouveau groupe calculé de chaque etats.
+        Map<Etat, Integer> calculatedMoore = new HashMap<Etat, Integer>();
+        
+        // Assigne un code à chaques etats en fonction de leurs couples (transition - groupe de la cible).
+        Map<Etat, String> codeMoore = new HashMap<Etat, String>();
+        
+        // Creation des deux premiers groupes (0 (etat initial) et 1 (etat final))
+        for (Etat etat : Q.values()) {
+        	if (isInitial(etat)) { referenceMoore.put(etat, 0);	}
+        	else { referenceMoore.put(etat, 1); }
+        }
+        
+        /* Pour chaque etats, on regarde toutes les transitions et on assigne cet etat dans un groupe en fonction
+         * du groupe de la cible de toutes ces transitions. On rassemble dans un même groupe tous les etats
+         * ayant les mêmes couples (transition - groupe de la cible).
+        */
+        while (fini == false) {
+        	
+        	// Création des symbolisant les couples (transition - groupe de la cible) de chaque etats.
+	        for (Etat etat : Q.values()) {
+	        	for (String lettre : A) {
+	        		String string = "";
+	        		for (Transition transition : mu) {
+	        			if (transition.source.equals(etat.name) && transition.symbol.equals(lettre)) {
+	        				string = referenceMoore.get(new Etat(transition.cible)).toString();
+	        			}
+	        		}
+	        		String string2 = codeMoore.get(etat) == null ?  "" : codeMoore.get(etat).toString();
+	        		if (string == "") {
+	        			Integer value = Collections.max(referenceMoore.entrySet(), Map.Entry.comparingByValue()).getValue() +1;
+	        			string = value.toString();
+	        		} 
+	    			codeMoore.put(etat, new String(string2 + string));
+	        	}
+	        }
+	        
+	        // Assignation de nouveaus groupes aux etats (même code -> même groupe)
+	        for (Entry<Etat, String> entry : codeMoore.entrySet()) {
+	        	if (calculatedMoore.size() == 0) {
+	        		calculatedMoore.put(entry.getKey(), 0);
+	        	}
+	        	else {
+	        		for (Entry<Etat, Integer> entry2 : calculatedMoore.entrySet()) {
+	        			if (entry.getValue().equals(codeMoore.get(entry2.getKey()))) {
+	        				calculatedMoore.put(entry.getKey(), entry2.getValue());
+	        			}
+	        		}
+	        		if (calculatedMoore.get(entry.getKey()) == null) {
+	        			Integer value = Collections.max(calculatedMoore.entrySet(), Map.Entry.comparingByValue()).getValue() +1;
+	        			calculatedMoore.put(entry.getKey(), value);
+	        		}
+	        	}
+	        }
+	        
+	        // Si les groupes n'ont pas changés, alors on arrête
+	        if (calculatedMoore.equals(referenceMoore)) { fini = true; }
+	        
+	        // Sinon on assigne les groupes de moore1 à moore pour pouvoir comparer moore et moore1 au prochain tour
+	        else {
+	        	referenceMoore = new HashMap<Etat, Integer>(calculatedMoore);
+	        	calculatedMoore.clear();
+	        	codeMoore.clear();
+	        }
+        }
+        
+        // Creation de la liste d'etat du nouvelle automate
+        for (Entry<Etat, Integer> entry : referenceMoore.entrySet()) {
+        	if (isFinal(entry.getKey())) { newF.add(entry.getValue().toString()); }
+        	if (isInitial(entry.getKey())) { newInitial = entry.getValue().toString();	}
+        	newQ.add(new Etat(entry.getValue().toString()));
+        }
+	        
+        // Creation de la liste de transition du nouvelle automate
+        for (Transition transition : mu) {
+        	for (Entry<Etat, Integer> entry : referenceMoore.entrySet()) {
+        		if (transition.source.equals(entry.getKey().name)) {
+        			newTransition.add(new Transition(entry.getValue().toString(), transition.symbol, referenceMoore.get(new Etat(transition.cible)).toString()));
+        		}
+        	}
+        }
+	
+        // Creation du nouvelle automate
+       	return new AFD(new HashSet<String>(A), newQ, newInitial, newF, newTransition);
 	}
 
 	/** 
@@ -405,16 +488,111 @@ public class Automate implements Cloneable {
 		System.out.println("union() : méthode non implémentée");
 		return a;
 	}
-
+	
 	/** 
 	* Construit un automate reconnaissant l'intersection du langage de l'automate avec celui de "a" 
 	* @param a un Automate
 	* @return un automate reconnaissant l'intersection
+	 * @throws JFSMException 
 	*/
-	public Automate intersection(Automate a) {
-		System.out.println("intersection() : méthode non implémentée");
-		return a;
+	public Automate intersection(Automate a) throws JFSMException {
+		
+		// Une intersection peut se faire que entre deux automates déterministes.
+		if (AFD.testDeterminisme(this) && AFD.testDeterminisme(a)) {
+			Set<String> newA = new HashSet<String>(A); 
+			newA.retainAll(a.A);
+			String newInitial = "";
+			Set<Transition> tempTransition = new HashSet<Transition>();
+			Set<Transition> newTransition = new HashSet<Transition>();
+			Set<Etat> newQ = new HashSet<Etat>();
+			Set<String> tempF = new HashSet<String>();
+			Set<String> newF = new HashSet<String>();
+			
+	        for(Transition transition1 : mu){
+	            for(Transition transition2 : a.mu){
+	                
+	            	// Création des transition possible entre les deux automate (produit cartésien)
+	                if (transition1.symbol.equals(transition2.symbol)) {
+	                	if (isFinal(transition1.cible) || a.isFinal(transition2.cible)) {
+	                		tempF.add(transition1.cible + transition2.cible);
+	                	}
+	                    tempTransition.add(new Transition(transition1.source + transition2.source, transition1.symbol, transition1.cible + transition2.cible));
+	                
+	                // Si les deux sources des deux transitions sont initiales, alors c'est la source initial de l'intersection
+		                if (isInitial(transition1.source) && a.isInitial(transition2.source)) {
+		                    Transition transition = new Transition(transition1.source + transition2.source, transition1.symbol, transition1.cible + transition2.cible);
+		                    newInitial = transition1.source + transition2.source;
+		                    newQ.add(new Etat(newInitial));
+		                    
+		                    // Si une des sources des deux automates est finale, alors la source du nouvelle automate sera finale
+		                    if (isFinal(transition1.source) || a.isFinal(transition2.source)) {
+		                    	newF.add(transition1.source + transition2.source);
+		                    }
+		                    
+		                    // Ajout de la transition initial à la liste de transition du nouvelle automate
+		                    newTransition.add(transition);	                    
+		                }   
+	                }
+	            }
+	        }
+	        
+	        // Choix des bonnes transitions
+	        Set<Transition> newTransitionCopy = new HashSet<Transition>();
+	        while (!newTransitionCopy.equals(newTransition)) {
+	        	newTransitionCopy = new HashSet<Transition>(newTransition);
+	            for (Transition transition : newTransitionCopy) {
+	            	
+	            	// Ajout des etats dans la liste d'etat du nouvelle automate
+	            	if (!newQ.contains(new Etat(transition.cible))) {
+	            		newQ.add(new Etat(transition.cible));
+	            	}
+	            	
+	            	// Ajout des etats dans la liste d"etat finaux du nouvelle automate
+	            	if (tempF.contains(transition.cible)) {
+	            		newF.add(transition.cible);
+	            	}
+	            	// Recherche des transitions accessible par notre nouvelle automate
+	            	String source = new String(transition.source);
+	            	for (int i = 0; i < tempTransition.size(); i++) {
+	                    if (source != "") {
+	                        source = finder(source, tempTransition, newTransition);
+	                    }
+	                }
+	            }
+	        }
+	
+	        // Creation du nouvelle automate
+	        Automate automate = new AFD(newA, newQ, newInitial, newF, newTransition);
+			
+			return automate.emonder();
+		}
+		System.out.println("Les automates ne sont pas déterministe");
+		return this;
 	}
+	
+	/** 
+	* Recherche parmis les transitions temporaires (produit cartesien) encore non choisi, une transition ayant
+	* comme source, la source rentré en paramètre. Si cette transition existe, on ajoute celle ci
+	* à la liste de transition final, et on la supprime de la liste de transition temporaire.
+	* @param source Une chaine de caractère correspondant à la source d'une transition que l'on cherche.
+	* @param tempTransition La liste des transitions possibles des deux automates (produit cartesien).
+	* @param newTransition La liste des transitions choisis pour le nouvelle automate.
+	* @return le nom de la cible de la transition trouvé, ou une chaine vide si aucune transition n'a été trouvé.
+	*/
+	private String finder(String source, Set<Transition> tempTransition, Set<Transition> newTransition) {
+        for (Transition transition : tempTransition) {
+            if (transition.source.equals(source)) {
+            	
+            	// Une transition a été trouvé
+                newTransition.add(transition);
+                tempTransition.remove(transition);
+                return transition.cible;
+            }
+        }
+        
+        // Aucune transition n'a été trouvé
+        return "";
+    }	
 
 	/** 
 	* Construit un automate reconnaissant le complémentaire du langage 
@@ -532,6 +710,7 @@ public class Automate implements Cloneable {
 
 }
 
+@SuppressWarnings("unused")
 class JFLAPHandler extends DefaultHandler {
 	String cdc ;
 	public Set<Etat> Q;

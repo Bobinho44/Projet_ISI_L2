@@ -39,6 +39,10 @@ package JFSM;
 
 
 public class JFSMException extends Exception {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	/** 
 	* Crée une nouvelle instance de JFSMException 
 	*/  
