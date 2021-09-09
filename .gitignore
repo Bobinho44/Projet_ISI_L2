@@ -1,0 +1,11 @@
+*.class
+.vscode/launch.json
+launch.json
+jar/JFSM.jar
+SC.java
+src/JFSM/SC/*.java
+src/JFSM/Automate2.java
+JFSM2.java
+doc
+bin
+.idea
